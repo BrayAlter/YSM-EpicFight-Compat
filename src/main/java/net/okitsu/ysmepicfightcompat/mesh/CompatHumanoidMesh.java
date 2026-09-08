@@ -210,7 +210,7 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
             frame = null;
         }
         float partialTick = frame == null ? 0.0F
-                : Minecraft.getInstance().getFrameTime();
+                : Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(true);
         ParallelAnimationProgram.Frame animationFrame = frame == null
                 || parallelAnimations.isEmpty() ? null
                 : parallelAnimations.sample(frame.entity(),

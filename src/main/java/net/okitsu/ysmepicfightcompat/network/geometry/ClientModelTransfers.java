@@ -276,7 +276,7 @@ public final class ClientModelTransfers {
         if (source == null || Minecraft.getInstance().getConnection() == null) {
             return;
         }
-        CompatNetwork.CHANNEL.sendToServer(new ModelRequestMessage(
+        CompatNetwork.sendToServer(new ModelRequestMessage(
                 modelId, source.entityId(), source.entityUuid(), knownPayloadDigest));
     }
 

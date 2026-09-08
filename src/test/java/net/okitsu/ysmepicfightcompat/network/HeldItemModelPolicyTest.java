@@ -1,6 +1,7 @@
 package net.okitsu.ysmepicfightcompat.network;
 
 import com.electronwill.nightconfig.core.Config;
+import com.electronwill.nightconfig.toml.TomlFormat;
 import com.electronwill.nightconfig.toml.TomlWriter;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
@@ -78,10 +79,15 @@ class HeldItemModelPolicyTest {
         assertTrue(HeldItemModelPolicy.isValidConfiguration(encoded));
         assertEquals(expected, HeldItemModelPolicy.decodeConfiguration(encoded));
 
-        Config root = Config.inMemory();
+        Config root = TomlFormat.instance().createConfig();
         Config client = root.createSubConfig();
         root.set(List.of("client"), client);
-        client.set(List.of("heldItemModelExclusions"), encoded);
+        // Copy through createSubConfig so nightconfig 3.8 writes a [table] section, not an inline table.
+        Config encodedSection = client.createSubConfig();
+        for (com.electronwill.nightconfig.core.UnmodifiableConfig.Entry entry : encoded.entrySet()) {
+            encodedSection.set(List.of(entry.getKey()), entry.getValue());
+        }
+        client.set(List.of("heldItemModelExclusions"), encodedSection);
         StringWriter output = new StringWriter();
         new TomlWriter().write(root, output);
         String toml = output.toString();

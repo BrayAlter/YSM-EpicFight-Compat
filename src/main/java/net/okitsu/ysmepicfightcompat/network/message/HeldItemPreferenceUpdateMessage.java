@@ -1,18 +1,29 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.network.HeldItemModelDisplayState;
 import net.okitsu.ysmepicfightcompat.network.HeldItemPreferenceBroadcaster;
-
-import java.util.function.Supplier;
 
 /** Client-to-server update containing only the sender's resolved display state. */
 public record HeldItemPreferenceUpdateMessage(boolean mainHandYsm,
                                               boolean offHandYsm,
                                               boolean mainHandYsmSwitchAnimation,
-                                              boolean offHandYsmSwitchAnimation) {
+                                              boolean offHandYsmSwitchAnimation)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<HeldItemPreferenceUpdateMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "held_item_preference_update"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, HeldItemPreferenceUpdateMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), HeldItemPreferenceUpdateMessage::read);
+
     public HeldItemPreferenceUpdateMessage(HeldItemModelDisplayState state) {
         this(state.mainHandYsm(), state.offHandYsm(),
                 state.mainHandYsmSwitchAnimation(),
@@ -33,10 +44,9 @@ public record HeldItemPreferenceUpdateMessage(boolean mainHandYsm,
                 input.readBoolean(), input.readBoolean());
     }
 
-    public static void receive(HeldItemPreferenceUpdateMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        ServerPlayer sender = context.getSender();
+    public static void receive(HeldItemPreferenceUpdateMessage message, IPayloadContext context) {
+        ServerPlayer sender = context.player() instanceof ServerPlayer serverPlayer
+                ? serverPlayer : null;
         if (sender != null) {
             context.enqueueWork(() -> HeldItemPreferenceBroadcaster.accept(sender,
                     new HeldItemModelDisplayState(message.mainHandYsm(),
@@ -44,6 +54,10 @@ public record HeldItemPreferenceUpdateMessage(boolean mainHandYsm,
                             message.mainHandYsmSwitchAnimation(),
                             message.offHandYsmSwitchAnimation())));
         }
-        context.setPacketHandled(true);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

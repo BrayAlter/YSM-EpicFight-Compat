@@ -1,19 +1,30 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.animation.ModAnimationType;
 import net.okitsu.ysmepicfightcompat.animation.MovementAnimationType;
 import net.okitsu.ysmepicfightcompat.network.MovementAnimationDisplayState;
 import net.okitsu.ysmepicfightcompat.network.MovementAnimationPolicy;
 import net.okitsu.ysmepicfightcompat.network.MovementAnimationPreferenceBroadcaster;
 
-import java.util.function.Supplier;
-
 /** Client-to-server update containing only the sender's current resolved movement state. */
 public record MovementAnimationPreferenceUpdateMessage(
-        MovementAnimationDisplayState state) {
+        MovementAnimationDisplayState state)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<MovementAnimationPreferenceUpdateMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "movement_animation_preference_update"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MovementAnimationPreferenceUpdateMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), MovementAnimationPreferenceUpdateMessage::read);
+
     public MovementAnimationPreferenceUpdateMessage {
         if (state == null) {
             throw new IllegalArgumentException("Missing movement-animation state");
@@ -29,15 +40,13 @@ public record MovementAnimationPreferenceUpdateMessage(
         return new MovementAnimationPreferenceUpdateMessage(readState(input));
     }
 
-    public static void receive(MovementAnimationPreferenceUpdateMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        ServerPlayer sender = context.getSender();
+    public static void receive(MovementAnimationPreferenceUpdateMessage message, IPayloadContext context) {
+        ServerPlayer sender = context.player() instanceof ServerPlayer serverPlayer
+                ? serverPlayer : null;
         if (sender != null) {
             context.enqueueWork(() -> MovementAnimationPreferenceBroadcaster.accept(
                     sender, message.state()));
         }
-        context.setPacketHandled(true);
     }
 
     static void writeState(MovementAnimationDisplayState state, FriendlyByteBuf output) {
@@ -78,5 +87,10 @@ public record MovementAnimationPreferenceUpdateMessage(
                 MovementAnimationDisplayState.MAX_MOD_ANIMATION_CLIP_LENGTH);
         return new MovementAnimationDisplayState(modelId, movement, ysmOwned,
                 naturalLadderPose, modAnimation, modAnimationOwned, modAnimationClip);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

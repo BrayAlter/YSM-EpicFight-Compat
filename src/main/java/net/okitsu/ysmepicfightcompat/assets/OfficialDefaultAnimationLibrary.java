@@ -3,7 +3,7 @@ package net.okitsu.ysmepicfightcompat.assets;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import net.okitsu.ysmepicfightcompat.animation.AnimationClip;
 import net.okitsu.ysmepicfightcompat.animation.BedrockAnimationParser;
 
@@ -103,7 +103,7 @@ final class OfficialDefaultAnimationLibrary {
         } catch (RuntimeException | LinkageError ignored) {
             // Plain unit tests do not bootstrap ModList. The classpath/disk fallbacks
             // below keep the parser independently testable without changing runtime
-            // authority inside an actual Forge instance.
+            // authority inside an actual NeoForge instance.
             return null;
         }
     }

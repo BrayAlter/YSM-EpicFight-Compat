@@ -1,19 +1,30 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.animation.ClientAttackSoundRouter;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /** Server-authoritative Epic Fight swing sound with its attacker identity intact. */
 public record AttackSwingSoundMessage(int entityId, UUID entityUuid, InteractionHand hand,
                                       int sequence, ResourceLocation sound,
                                       double x, double y, double z,
-                                      float volume, float pitch) {
+                                      float volume, float pitch)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<AttackSwingSoundMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "attack_swing_sound"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, AttackSwingSoundMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), AttackSwingSoundMessage::read);
+
     private static final float MAX_VOLUME = 16.0F;
     private static final float MAX_PITCH = 4.0F;
 
@@ -46,12 +57,14 @@ public record AttackSwingSoundMessage(int entityId, UUID entityUuid, Interaction
                 input.readDouble(), input.readFloat(), input.readFloat());
     }
 
-    public static void receive(AttackSwingSoundMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        if (context.getDirection().getReceptionSide().isClient()) {
+    public static void receive(AttackSwingSoundMessage message, IPayloadContext context) {
+        if (context.flow().isClientbound()) {
             context.enqueueWork(() -> ClientAttackSoundRouter.receive(message));
         }
-        context.setPacketHandled(true);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

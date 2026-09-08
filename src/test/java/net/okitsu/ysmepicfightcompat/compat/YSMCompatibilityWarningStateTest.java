@@ -2,6 +2,7 @@ package net.okitsu.ysmepicfightcompat.compat;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import net.okitsu.ysmepicfightcompat.config.ClientPreferences;
+import net.okitsu.ysmepicfightcompat.config.TestConfigs;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,15 +34,15 @@ class YSMCompatibilityWarningStateTest {
     @Test
     void acknowledgementSurvivesAClientConfigReload(@TempDir Path directory) {
         Path path = directory.resolve("ysm-epicfight-compat-client.toml");
-        // Match Forge's synchronous writes so defaults cannot race with the acknowledgement save.
+        // Match the loader's synchronous writes so defaults cannot race with the acknowledgement save.
         try (CommentedFileConfig config = CommentedFileConfig.builder(path).sync().build()) {
             config.load();
-            ClientPreferences.CLIENT_SPEC.setConfig(config);
+            TestConfigs.setConfig(ClientPreferences.CLIENT_SPEC, config);
             assertFalse(ClientPreferences.YSM_WARNING_ACKNOWLEDGED.get());
             ClientPreferences.YSM_WARNING_ACKNOWLEDGED.set(true);
-            ClientPreferences.YSM_WARNING_ACKNOWLEDGED.save();
+            TestConfigs.save(ClientPreferences.CLIENT_SPEC);
         } finally {
-            ClientPreferences.CLIENT_SPEC.setConfig(null);
+            TestConfigs.setConfig(ClientPreferences.CLIENT_SPEC, null);
         }
         try (CommentedFileConfig config = CommentedFileConfig.builder(path).sync().build()) {
             config.load();

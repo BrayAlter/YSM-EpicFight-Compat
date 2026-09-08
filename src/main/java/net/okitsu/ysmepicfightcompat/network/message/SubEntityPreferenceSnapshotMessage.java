@@ -1,16 +1,28 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.network.RemoteSubEntityModelPreferences;
 import net.okitsu.ysmepicfightcompat.network.SubEntityModelDisplayState;
 import net.okitsu.ysmepicfightcompat.network.SubEntityModelKind;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /** Server-authoritative sub-entity source paired with the resolved display result. */
-public record SubEntityPreferenceSnapshotMessage(SubEntityModelDisplayState state) {
+public record SubEntityPreferenceSnapshotMessage(SubEntityModelDisplayState state)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<SubEntityPreferenceSnapshotMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "sub_entity_preference_snapshot"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, SubEntityPreferenceSnapshotMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), SubEntityPreferenceSnapshotMessage::read);
+
     public SubEntityPreferenceSnapshotMessage {
         if (state == null) {
             throw new IllegalArgumentException("Missing sub-entity preference snapshot");
@@ -45,13 +57,15 @@ public record SubEntityPreferenceSnapshotMessage(SubEntityModelDisplayState stat
                 input.readBoolean(), input.readBoolean()));
     }
 
-    public static void receive(SubEntityPreferenceSnapshotMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        if (context.getDirection().getReceptionSide().isClient()) {
+    public static void receive(SubEntityPreferenceSnapshotMessage message, IPayloadContext context) {
+        if (context.flow().isClientbound()) {
             context.enqueueWork(() ->
                     RemoteSubEntityModelPreferences.accept(message.state()));
         }
-        context.setPacketHandled(true);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

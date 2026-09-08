@@ -4,6 +4,7 @@ import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import net.okitsu.ysmepicfightcompat.animation.ModAnimationType;
 import net.okitsu.ysmepicfightcompat.animation.MovementAnimationType;
 import net.okitsu.ysmepicfightcompat.config.ClientPreferences;
+import net.okitsu.ysmepicfightcompat.config.TestConfigs;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,14 +36,14 @@ class ClientModAnimationPreferencesTest {
     void attachClientConfig(@TempDir Path directory) {
         config = CommentedFileConfig.builder(directory.resolve("client.toml")).sync().build();
         config.load();
-        ClientPreferences.CLIENT_SPEC.setConfig(config);
+        TestConfigs.setConfig(ClientPreferences.CLIENT_SPEC, config);
         ClientMovementAnimationPreferences.beginConnection();
     }
 
     @AfterEach
     void clearSessionAndClientConfig() {
         ClientMovementAnimationPreferences.beginConnection();
-        ClientPreferences.CLIENT_SPEC.setConfig(null);
+        TestConfigs.setConfig(ClientPreferences.CLIENT_SPEC, null);
         if (config != null) {
             config.close();
         }

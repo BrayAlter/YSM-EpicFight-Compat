@@ -1,14 +1,17 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.network.ClientSubEntityModelPreferences;
 import net.okitsu.ysmepicfightcompat.network.MovementAnimationPolicy;
 import net.okitsu.ysmepicfightcompat.network.SubEntityModelKind;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /** Server-owned source inputs needed for the model owner to resolve local rules. */
 public record SubEntityPreferenceQueryMessage(
@@ -21,7 +24,15 @@ public record SubEntityPreferenceQueryMessage(
         SubEntityModelKind kind,
         String modelId,
         ResourceLocation entityTypeId,
-        ResourceLocation sourceItemId) {
+        ResourceLocation sourceItemId)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<SubEntityPreferenceQueryMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "sub_entity_preference_query"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, SubEntityPreferenceQueryMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), SubEntityPreferenceQueryMessage::read);
+
     public SubEntityPreferenceQueryMessage {
         modelId = MovementAnimationPolicy.normalizeModelId(modelId);
         if (queryId == null || entityId < 0 || entityUuid == null
@@ -55,12 +66,14 @@ public record SubEntityPreferenceQueryMessage(
                 input.readResourceLocation(), input.readResourceLocation());
     }
 
-    public static void receive(SubEntityPreferenceQueryMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        if (context.getDirection().getReceptionSide().isClient()) {
+    public static void receive(SubEntityPreferenceQueryMessage message, IPayloadContext context) {
+        if (context.flow().isClientbound()) {
             context.enqueueWork(() -> ClientSubEntityModelPreferences.accept(message));
         }
-        context.setPacketHandled(true);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

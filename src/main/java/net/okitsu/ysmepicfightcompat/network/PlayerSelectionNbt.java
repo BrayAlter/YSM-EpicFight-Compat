@@ -5,6 +5,9 @@ import net.minecraft.world.entity.player.Player;
 
 /** Reads the stable serialized contract of official YSM's player capability. */
 public final class PlayerSelectionNbt {
+    /** NeoForge 1.21.1 serializes data attachments under this root key. */
+    private static final String NEOFORGE_ATTACHMENTS = "neoforge:attachments";
+    /** Legacy 1.20.1 Forge capability root, kept as a fallback for migrated data. */
     private static final String FORGE_CAPS = "ForgeCaps";
     private static final String YSM_SELECTION = "yes_steve_model:model_id";
 
@@ -26,10 +29,18 @@ public final class PlayerSelectionNbt {
     }
 
     static Selection parse(CompoundTag root) {
-        if (root == null || !root.contains(FORGE_CAPS, CompoundTag.TAG_COMPOUND)) {
+        if (root == null) {
             return null;
         }
-        CompoundTag capabilities = root.getCompound(FORGE_CAPS);
+        Selection selection = parseContainer(root, NEOFORGE_ATTACHMENTS);
+        return selection != null ? selection : parseContainer(root, FORGE_CAPS);
+    }
+
+    private static Selection parseContainer(CompoundTag root, String containerKey) {
+        if (!root.contains(containerKey, CompoundTag.TAG_COMPOUND)) {
+            return null;
+        }
+        CompoundTag capabilities = root.getCompound(containerKey);
         if (!capabilities.contains(YSM_SELECTION, CompoundTag.TAG_COMPOUND)) {
             return null;
         }

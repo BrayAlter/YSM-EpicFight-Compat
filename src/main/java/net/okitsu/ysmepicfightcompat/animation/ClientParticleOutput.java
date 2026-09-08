@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleEngine;
 import net.minecraft.commands.arguments.ParticleArgument;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
@@ -286,10 +287,24 @@ final class ClientParticleOutput {
         return cached.orElse(null);
     }
 
+    // 1.21: readParticle needs a full registry lookup provider; particle types stay built in.
+    // Resolved lazily so a missing registry bootstrap degrades to an empty parse result, matching
+    // the 1.20.1 behavior where registry access happened inside the guarded parse call.
+    private static volatile RegistryAccess builtInLookup;
+
+    private static RegistryAccess builtInLookup() {
+        RegistryAccess lookup = builtInLookup;
+        if (lookup == null) {
+            lookup = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+            builtInLookup = lookup;
+        }
+        return lookup;
+    }
+
     private static Optional<ParticleOptions> parseParticle(String source) {
         try {
             return Optional.of(ParticleArgument.readParticle(
-                    new StringReader(source), BuiltInRegistries.PARTICLE_TYPE.asLookup()));
+                    new StringReader(source), builtInLookup()));
         } catch (Exception ignored) {
             return Optional.empty();
         }

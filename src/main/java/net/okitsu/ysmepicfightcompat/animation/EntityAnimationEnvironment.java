@@ -7,6 +7,7 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -39,8 +40,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.ForgeMod;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.common.NeoForgeMod;
 import net.okitsu.ysmepicfightcompat.integration.tlm.TouhouMaidSelectionAccess;
 import net.okitsu.ysmepicfightcompat.render.PlayerSelectionResolver;
 import org.lwjgl.glfw.GLFW;
@@ -403,10 +404,10 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
                     && player.isSpectator());
             case "query.is_first_person" -> flag(firstPerson);
             case "query.item_in_use_duration" -> entity.isUsingItem()
-                    ? (entity.getUseItem().getUseDuration() - entity.getUseItemRemainingTicks()) / 20.0D
+                    ? (entity.getUseItem().getUseDuration(entity) - entity.getUseItemRemainingTicks()) / 20.0D
                     : 0.0D;
             case "query.item_max_use_duration" -> entity.isUsingItem()
-                    ? entity.getUseItem().getUseDuration() / 20.0D : 0.0D;
+                    ? entity.getUseItem().getUseDuration(entity) / 20.0D : 0.0D;
             case "query.item_remaining_use_duration" ->
                     entity.getUseItemRemainingTicks() / 20.0D;
             case "query.equipment_count" -> equipmentCount(entity);
@@ -459,12 +460,12 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
             case "ysm.movement_speed" -> attribute(Attributes.MOVEMENT_SPEED);
             case "ysm.knockback_resistance" -> attribute(Attributes.KNOCKBACK_RESISTANCE);
             case "ysm.luck" -> attribute(Attributes.LUCK);
-            case "ysm.block_reach" -> attribute(ForgeMod.BLOCK_REACH.get());
-            case "ysm.entity_reach" -> attribute(ForgeMod.ENTITY_REACH.get());
-            case "ysm.swim_speed" -> attribute(ForgeMod.SWIM_SPEED.get());
-            case "ysm.entity_gravity" -> attribute(ForgeMod.ENTITY_GRAVITY.get());
-            case "ysm.step_height_addition" -> attribute(ForgeMod.STEP_HEIGHT_ADDITION.get());
-            case "ysm.nametag_distance" -> attribute(ForgeMod.NAMETAG_DISTANCE.get());
+            case "ysm.block_reach" -> attribute(Attributes.BLOCK_INTERACTION_RANGE);
+            case "ysm.entity_reach" -> attribute(Attributes.ENTITY_INTERACTION_RANGE);
+            case "ysm.swim_speed" -> attribute(NeoForgeMod.SWIM_SPEED);
+            case "ysm.entity_gravity" -> attribute(Attributes.GRAVITY);
+            case "ysm.step_height_addition" -> stepHeightAddition();
+            case "ysm.nametag_distance" -> attribute(NeoForgeMod.NAMETAG_DISTANCE);
             case "ysm.is_player" -> flag(entity instanceof Player);
             case "ysm.is_maid" -> flag(TouhouMaidSelectionAccess.isSupportedMaid(entity));
             case "ysm.mainhand_charged_crossbow" -> flag(chargedCrossbow(entity.getMainHandItem()));
@@ -694,8 +695,10 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
         }
         return OfficialQueryValues.sumLevels(arguments, 1, text -> {
             ResourceLocation id = resourceLocation(text, '$');
-            Enchantment enchantment = id == null ? null
-                    : BuiltInRegistries.ENCHANTMENT.getOptional(id).orElse(null);
+            // 1.21: enchantments are data driven; resolve holders from the level's registries.
+            Holder<Enchantment> enchantment = id == null ? null
+                    : entity.level().registryAccess().registryOrThrow(Registries.ENCHANTMENT)
+                            .getHolder(id).orElse(null);
             return enchantment == null ? 0.0D
                     : EnchantmentHelper.getItemEnchantmentLevel(enchantment, stack);
         });
@@ -704,8 +707,8 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
     private double effectLevel(String[] arguments) {
         return OfficialQueryValues.sumLevels(arguments, 0, text -> {
             ResourceLocation id = resourceLocation(text, '$');
-            MobEffect effect = id == null ? null
-                    : BuiltInRegistries.MOB_EFFECT.getOptional(id).orElse(null);
+            Holder<MobEffect> effect = id == null ? null
+                    : BuiltInRegistries.MOB_EFFECT.getHolder(id).orElse(null);
             MobEffectInstance active = effect == null ? null : entity.getEffect(effect);
             // Minecraft stores a zero-based amplifier; YSM reports visible effect levels.
             return active == null ? 0.0D : active.getAmplifier() + 1.0D;
@@ -794,9 +797,18 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
         return hasParrot(tag) ? Parrot.Variant.byId(tag.getInt("Variant")).getSerializedName() : "";
     }
 
-    private double attribute(Attribute attribute) {
+    private double attribute(Holder<Attribute> attribute) {
         var instance = entity.getAttribute(attribute);
         return instance == null ? 0.0D : instance.getValue();
+    }
+
+    /**
+     * Forge's STEP_HEIGHT_ADDITION became vanilla STEP_HEIGHT, which includes the
+     * entity's base step height; report only the addition like official YSM did.
+     */
+    private double stepHeightAddition() {
+        var instance = entity.getAttribute(Attributes.STEP_HEIGHT);
+        return instance == null ? 0.0D : instance.getValue() - instance.getBaseValue();
     }
 
     private static boolean chargedCrossbow(ItemStack stack) {
@@ -1222,7 +1234,7 @@ final class EntityAnimationEnvironment implements MolangScriptRuntime.Host {
     private static boolean hasCape(LivingEntity entity) {
         return entity instanceof AbstractClientPlayer player
                 && player.isModelPartShown(PlayerModelPart.CAPE)
-                && player.getCloakTextureLocation() != null;
+                && player.getSkin().capeTexture() != null;
     }
 
     private static double capeFlapAmount(LivingEntity entity, float partialTick) {

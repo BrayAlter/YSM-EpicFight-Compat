@@ -2,7 +2,7 @@ package net.okitsu.ysmepicfightcompat.integration.parcool;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import yesman.epicfight.api.animation.AnimationPlayer;
 import yesman.epicfight.api.animation.types.DynamicAnimation;
 import yesman.epicfight.api.animation.types.StaticAnimation;

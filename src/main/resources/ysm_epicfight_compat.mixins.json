@@ -5,18 +5,24 @@
   "plugin": "net.okitsu.ysmmapping.internal.mixin.YsmMappingMixinPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "AttackAnimationSoundMixin"
+    "AttackAnimationSoundMixin",
+    "ShieldBlockObserverMixin"
   ],
   "client": [
     "AttachmentArmatureMixin",
     "CombatOverlayMixin",
     "CombatFirstPersonMixin",
+    "CompositeRenderStateAccessor$State",
+    "CompositeRenderTypeAccessor",
     "FirstPersonRenderScopeMixin",
     "FirstPersonArmorGateMixin",
     "HeldItemCorrectionMixin",
+    "InventoryRenderScopeMixin",
+    "OutlineBufferSourceAccessor",
     "PatchedLivingEntityRendererMixin",
     "PatchedItemInHandLayerMixin",
     "PlayerStateCapabilityMixin",
+    "RenderTypeSortingAccessor",
     "TouhouMaidAnimationStateMixin",
     "TouhouMaidRendererMixin",
     "TridentHeldItemCorrectionMixin",

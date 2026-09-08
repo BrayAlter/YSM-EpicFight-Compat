@@ -1,13 +1,16 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.network.ClientMaidPreferenceSync;
 import net.okitsu.ysmepicfightcompat.network.MovementAnimationPolicy;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /** Server inputs needed for an owner to resolve held-item rules for one maid. */
 public record MaidPreferenceQueryMessage(
@@ -19,7 +22,15 @@ public record MaidPreferenceQueryMessage(
         long revision,
         String modelId,
         ResourceLocation mainHandItem,
-        ResourceLocation offHandItem) {
+        ResourceLocation offHandItem)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<MaidPreferenceQueryMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "maid_preference_query"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MaidPreferenceQueryMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), MaidPreferenceQueryMessage::read);
+
     public MaidPreferenceQueryMessage {
         modelId = MovementAnimationPolicy.normalizeModelId(modelId);
         if (queryId == null || entityId < 0 || entityUuid == null || ownerUuid == null
@@ -58,12 +69,14 @@ public record MaidPreferenceQueryMessage(
                 mainHandItem, offHandItem);
     }
 
-    public static void receive(MaidPreferenceQueryMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        if (context.getDirection().getReceptionSide().isClient()) {
+    public static void receive(MaidPreferenceQueryMessage message, IPayloadContext context) {
+        if (context.flow().isClientbound()) {
             context.enqueueWork(() -> ClientMaidPreferenceSync.accept(message));
         }
-        context.setPacketHandled(true);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

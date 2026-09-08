@@ -5,7 +5,7 @@ import com.electronwill.nightconfig.core.Config;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import com.electronwill.nightconfig.toml.TomlParser;
 import com.electronwill.nightconfig.toml.TomlWriter;
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import net.okitsu.ysmepicfightcompat.network.ModAnimationPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -54,7 +54,8 @@ class OptionalModConfigTest {
         assertEquals(swem, config.contains(path(SWEM_RULES)));
         assertEquals(64, config.<Integer>get(path("normalSetting")));
         assertTrue(fixture.spec.isCorrect(config));
-        assertEquals(0, fixture.spec.correct(config));
+        assertEquals(0, fixture.spec.correct(config,
+                (action, path, incorrectValue, correctedValue) -> { }));
     }
 
     @ParameterizedTest
@@ -68,13 +69,14 @@ class OptionalModConfigTest {
         CommentedConfig parsed = roundTrip(config);
 
         assertTrue(fixture.spec.isCorrect(parsed));
-        assertEquals(0, fixture.spec.correct(parsed));
+        assertEquals(0, fixture.spec.correct(parsed,
+                (action, path, incorrectValue, correctedValue) -> { }));
         assertTrue(fixture.spec.isCorrect(roundTrip(parsed)));
         for (String key : OPTIONAL_KEYS) {
             boolean available = key.equals(PARCOOL_TOGGLE) || key.equals(PARCOOL_RULES)
                     ? parcool : swem;
-            ForgeConfigSpec.ValueSpec valueSpec =
-                    (ForgeConfigSpec.ValueSpec) fixture.spec.getRaw(path(key));
+            ModConfigSpec.ValueSpec valueSpec =
+                    (ModConfigSpec.ValueSpec) fixture.spec.getSpec().getRaw(path(key));
             assertEquals(!available, valueSpec.test(null), key);
             if (!available) {
                 assertNull(valueSpec.getComment(), key);
@@ -88,7 +90,7 @@ class OptionalModConfigTest {
     void readingMissingOptionalValuesReturnsDefaultsWithoutInsertingKeys() {
         Fixture fixture = fixture(false, false);
         CommentedConfig config = CommentedConfig.inMemory();
-        fixture.spec.setConfig(config);
+        TestConfigs.setConfig(fixture.spec, config);
 
         for (int read = 0; read < 2; read++) {
             assertTrue(fixture.parcoolToggle.get());
@@ -115,7 +117,7 @@ class OptionalModConfigTest {
         };
         config.set(path(existingKey), customized);
 
-        fixture.spec.setConfig(config);
+        TestConfigs.setConfig(fixture.spec, config);
         CommentedConfig parsed = roundTrip(config);
 
         assertEquals(customized, parsed.getRaw(path(existingKey)));
@@ -132,7 +134,7 @@ class OptionalModConfigTest {
         installed.spec.correct(config);
         Fixture absent = fixture(false, false);
 
-        absent.spec.setConfig(config);
+        TestConfigs.setConfig(absent.spec, config);
         CommentedConfig parsed = roundTrip(config);
 
         for (String key : OPTIONAL_KEYS) {
@@ -158,7 +160,7 @@ class OptionalModConfigTest {
         swemRules.set(List.of(MODEL), List.of("hang"));
         config.set(path(SWEM_RULES), swemRules);
 
-        fixture.spec.setConfig(config);
+        TestConfigs.setConfig(fixture.spec, config);
 
         assertTrue(fixture.parcoolToggle.get());
         assertTrue(fixture.swemToggle.get());
@@ -169,7 +171,7 @@ class OptionalModConfigTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"true", "false", "TRUE", "False"})
-    void retainsStringBooleansAlreadyAcceptedByForge(String existingValue) {
+    void retainsStringBooleansAlreadyAcceptedByTheLoader(String existingValue) {
         for (boolean available : List.of(false, true)) {
             Fixture fixture = fixture(available, available);
             CommentedConfig config = CommentedConfig.inMemory();
@@ -191,13 +193,13 @@ class OptionalModConfigTest {
         Fixture fixture = fixture(false, false);
         try (CommentedFileConfig config = open(file)) {
             config.load();
-            fixture.spec.setConfig(config);
+            TestConfigs.setConfig(fixture.spec, config);
             assertTrue(fixture.parcoolToggle.get());
             assertTrue(fixture.swemRules.get().isEmpty());
             fixture.normalSetting.set(80);
-            fixture.spec.save();
+            TestConfigs.save(fixture.spec);
         } finally {
-            fixture.spec.setConfig(null);
+            TestConfigs.setConfig(fixture.spec, null);
         }
 
         CommentedConfig saved = new TomlParser().parse(Files.readString(file));
@@ -213,23 +215,23 @@ class OptionalModConfigTest {
         Fixture installed = fixture(true, true);
         try (CommentedFileConfig config = open(file)) {
             config.load();
-            installed.spec.setConfig(config);
+            TestConfigs.setConfig(installed.spec, config);
             installed.parcoolToggle.set(false);
             installed.swemToggle.set(false);
             installed.parcoolRules.set(ModAnimationPolicy.encodeConfiguration(PARCOOL, PARCOOL_CUSTOM));
             installed.swemRules.set(ModAnimationPolicy.encodeConfiguration(SWEM, SWEM_CUSTOM));
-            installed.spec.save();
+            TestConfigs.save(installed.spec);
         } finally {
-            installed.spec.setConfig(null);
+            TestConfigs.setConfig(installed.spec, null);
         }
 
         Fixture absent = fixture(false, false);
         try (CommentedFileConfig config = open(file)) {
             config.load();
-            absent.spec.setConfig(config);
+            TestConfigs.setConfig(absent.spec, config);
             assertCustomized(config);
             absent.normalSetting.set(80);
-            absent.spec.save();
+            TestConfigs.save(absent.spec);
             config.load();
             absent.spec.correct(config);
             absent.spec.afterReload();
@@ -238,7 +240,7 @@ class OptionalModConfigTest {
             assertFalse(absent.swemToggle.get());
             assertTrue(absent.spec.isCorrect(config));
         } finally {
-            absent.spec.setConfig(null);
+            TestConfigs.setConfig(absent.spec, null);
         }
 
         CommentedConfig saved = new TomlParser().parse(Files.readString(file));
@@ -249,7 +251,7 @@ class OptionalModConfigTest {
         Fixture reinstalled = fixture(true, true);
         try (CommentedFileConfig config = open(file)) {
             config.load();
-            reinstalled.spec.setConfig(config);
+            TestConfigs.setConfig(reinstalled.spec, config);
             assertCustomized(config);
             assertFalse(reinstalled.parcoolToggle.get());
             assertFalse(reinstalled.swemToggle.get());
@@ -259,7 +261,7 @@ class OptionalModConfigTest {
                     ModAnimationPolicy.decodeConfiguration(SWEM, reinstalled.swemRules.get()));
             assertTrue(reinstalled.spec.isCorrect(config));
         } finally {
-            reinstalled.spec.setConfig(null);
+            TestConfigs.setConfig(reinstalled.spec, null);
         }
         assertCustomized(new TomlParser().parse(Files.readString(file)));
     }
@@ -294,28 +296,28 @@ class OptionalModConfigTest {
     }
 
     private static Fixture fixture(boolean parcool, boolean swem) {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
         builder.comment("Client preferences.").push("client");
-        ForgeConfigSpec.ConfigValue<Integer> normalSetting = builder
+        ModConfigSpec.ConfigValue<Integer> normalSetting = builder
                 .comment("An unrelated ordinary preference.").define("normalSetting", 64);
-        ForgeConfigSpec.ConfigValue<Boolean> parcoolToggle = OptionalModConfig.defineBoolean(
+        ModConfigSpec.ConfigValue<Boolean> parcoolToggle = OptionalModConfig.defineBoolean(
                 builder, PARCOOL_TOGGLE, parcool, "ParCool animations.");
-        ForgeConfigSpec.ConfigValue<Config> parcoolRules = OptionalModConfig.defineExclusions(
+        ModConfigSpec.ConfigValue<Config> parcoolRules = OptionalModConfig.defineExclusions(
                 builder, PARCOOL_RULES, PARCOOL, parcool, "ParCool animation exclusions.");
-        ForgeConfigSpec.ConfigValue<Boolean> swemToggle = OptionalModConfig.defineBoolean(
+        ModConfigSpec.ConfigValue<Boolean> swemToggle = OptionalModConfig.defineBoolean(
                 builder, SWEM_TOGGLE, swem, "SWEM animations.");
-        ForgeConfigSpec.ConfigValue<Config> swemRules = OptionalModConfig.defineExclusions(
+        ModConfigSpec.ConfigValue<Config> swemRules = OptionalModConfig.defineExclusions(
                 builder, SWEM_RULES, SWEM, swem, "SWEM animation exclusions.");
         builder.pop();
         return new Fixture(builder.build(), normalSetting,
                 parcoolToggle, parcoolRules, swemToggle, swemRules);
     }
 
-    private record Fixture(ForgeConfigSpec spec,
-                           ForgeConfigSpec.ConfigValue<Integer> normalSetting,
-                           ForgeConfigSpec.ConfigValue<Boolean> parcoolToggle,
-                           ForgeConfigSpec.ConfigValue<Config> parcoolRules,
-                           ForgeConfigSpec.ConfigValue<Boolean> swemToggle,
-                           ForgeConfigSpec.ConfigValue<Config> swemRules) {
+    private record Fixture(ModConfigSpec spec,
+                           ModConfigSpec.ConfigValue<Integer> normalSetting,
+                           ModConfigSpec.ConfigValue<Boolean> parcoolToggle,
+                           ModConfigSpec.ConfigValue<Config> parcoolRules,
+                           ModConfigSpec.ConfigValue<Boolean> swemToggle,
+                           ModConfigSpec.ConfigValue<Config> swemRules) {
     }
 }

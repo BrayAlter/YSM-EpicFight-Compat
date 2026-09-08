@@ -35,8 +35,8 @@ class InventoryRenderContractTest {
     private static final String INVENTORY = "net/minecraft/client/gui/screens/inventory/InventoryScreen";
     private static final String RENDER_SYSTEM = "com/mojang/blaze3d/systems/RenderSystem";
     private static final String ENTITY = "Lnet/minecraft/world/entity/LivingEntity;";
-    private static final String PREVIEW_DESCRIPTOR = "(Lnet/minecraft/client/gui/GuiGraphics;III"
-            + "Lorg/joml/Quaternionf;Lorg/joml/Quaternionf;" + ENTITY + ")V";
+    private static final String PREVIEW_DESCRIPTOR = "(Lnet/minecraft/client/gui/GuiGraphics;FFF"
+            + "Lorg/joml/Vector3f;Lorg/joml/Quaternionf;Lorg/joml/Quaternionf;" + ENTITY + ")V";
     private static final String PREVIEW_SELECTOR = "renderEntityInInventory" + PREVIEW_DESCRIPTOR;
 
     @Test
@@ -67,7 +67,7 @@ class InventoryRenderContractTest {
         MethodInfo handler = read(MIXIN).method("ysmCompat$renderInventoryScoped",
                 "(Ljava/lang/Runnable;" + PREVIEW_DESCRIPTOR.substring(1));
         int open = only(handler.calls(SCOPE, "open", "(Ljava/lang/Object;)L" + SCOPE + "$Token;"));
-        assertEquals(Step.variable(Opcodes.ALOAD, 7), handler.steps.get(open - 1),
+        assertEquals(Step.variable(Opcodes.ALOAD, 8), handler.steps.get(open - 1),
                 "The scope must use the original LivingEntity argument");
         int fancy = only(handler.calls(RENDER_SYSTEM, "runAsFancy", "(Ljava/lang/Runnable;)V"));
         assertEquals(Step.variable(Opcodes.ALOAD, 0), handler.steps.get(fancy - 1));
@@ -88,17 +88,14 @@ class InventoryRenderContractTest {
     }
 
     @Test
-    void inventoryHookIsClientOnlyAndItsVanillaSelectorHasAProductionRefmap() throws IOException {
+    void inventoryHookIsClientOnlyAndNeedsNoRefmapOnTheMojmapRuntime() throws IOException {
         JsonObject config = json("ysm_epicfight_compat.mixins.json");
         assertEquals(1, count(config, "client", "InventoryRenderScopeMixin"));
         assertEquals(0, count(config, "mixins", "InventoryRenderScopeMixin"));
-        JsonObject refmap = json(config.get("refmap").getAsString());
-        // This is the public Minecraft 1.20.1 named-to-SRG mapping, not a YSM alias.
-        String mapped = "L" + INVENTORY + ";m_280432_" + PREVIEW_DESCRIPTOR;
-        assertEquals(mapped, refmap.getAsJsonObject("mappings").getAsJsonObject(MIXIN)
-                .get(PREVIEW_SELECTOR).getAsString());
-        assertEquals(mapped, refmap.getAsJsonObject("data").getAsJsonObject("searge")
-                .getAsJsonObject(MIXIN).get(PREVIEW_SELECTOR).getAsString());
+        // The 1.21.1 NeoForge runtime is mojmap: the mixin selector already uses the
+        // production name, so the config must not declare a refmap (or its wrapper).
+        assertNull(config.get("refmap"));
+        assertNull(config.get("refmapWrapper"));
     }
 
     @Test
@@ -143,20 +140,20 @@ class InventoryRenderContractTest {
     void shieldObserverIsAnUncancelledRequiredReturnHookOnTheCommonSide() throws IOException {
         String shieldMixin = ROOT + "mixin/ShieldBlockObserverMixin";
         ClassInfo mixin = read(shieldMixin);
-        assertEquals(List.of("net/minecraftforge/common/ForgeHooks"), mixin.targets);
+        assertEquals(List.of("net/neoforged/neoforge/common/CommonHooks"), mixin.targets);
         assertFalse(mixin.remap);
         MethodInfo handler = only(mixin.methods.stream().filter(method -> !method.hooks.isEmpty()).toList());
         Hook hook = only(handler.hooks);
-        String descriptor = "(" + ENTITY + "Lnet/minecraft/world/damagesource/DamageSource;F)"
-                + "Lnet/minecraftforge/event/entity/living/ShieldBlockEvent;";
+        String descriptor = "(" + ENTITY + "Lnet/neoforged/neoforge/common/damagesource/DamageContainer;Z)"
+                + "Lnet/neoforged/neoforge/event/entity/living/LivingShieldBlockEvent;";
         assertEquals("Lorg/spongepowered/asm/mixin/injection/Inject;", hook.annotation);
-        assertEquals(List.of("onShieldBlock" + descriptor), hook.methods);
+        assertEquals(List.of("onDamageBlock" + descriptor), hook.methods);
         assertEquals("RETURN", hook.at);
         assertEquals(1, hook.require);
         assertFalse(hook.remap);
         assertFalse(hook.cancellable);
-        assertNotEquals(0, read("net/minecraftforge/common/ForgeHooks")
-                .method("onShieldBlock", descriptor).access & Opcodes.ACC_STATIC);
+        assertNotEquals(0, read("net/neoforged/neoforge/common/CommonHooks")
+                .method("onDamageBlock", descriptor).access & Opcodes.ACC_STATIC);
         assertTrue(handler.steps.stream().noneMatch(step ->
                 step.name.equals("cancel") || step.name.equals("setReturnValue")));
         JsonObject config = json("ysm_epicfight_compat.mixins.json");

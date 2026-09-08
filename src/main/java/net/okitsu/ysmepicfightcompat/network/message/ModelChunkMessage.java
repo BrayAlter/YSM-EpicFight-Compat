@@ -1,19 +1,31 @@
 package net.okitsu.ysmepicfightcompat.network.message;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.okitsu.ysmepicfightcompat.CompatMod;
 import net.okitsu.ysmepicfightcompat.network.geometry.ClientModelTransfers;
 import net.okitsu.ysmepicfightcompat.network.geometry.GeometryTransferCodec;
 import net.okitsu.ysmepicfightcompat.cache.ModelDiskCache;
 
 import java.util.Arrays;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /** One bounded response or data chunk for a server model request. */
 public record ModelChunkMessage(Status status, UUID transferId, String modelId,
                                 byte[] payloadDigest, int totalBytes,
-                                int chunkIndex, int chunkCount, byte[] bytes) {
+                                int chunkIndex, int chunkCount, byte[] bytes)
+        implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<ModelChunkMessage> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                    CompatMod.MOD_ID, "model_chunk"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ModelChunkMessage>
+            STREAM_CODEC = StreamCodec.of(
+                    (output, message) -> write(message, output), ModelChunkMessage::read);
+
     public enum Status {
         DATA,
         UNCHANGED,
@@ -86,12 +98,14 @@ public record ModelChunkMessage(Status status, UUID transferId, String modelId,
                 input.readVarInt(), input.readVarInt(), input.readByteArray(CHUNK_BYTES));
     }
 
-    public static void receive(ModelChunkMessage message,
-                               Supplier<NetworkEvent.Context> suppliedContext) {
-        NetworkEvent.Context context = suppliedContext.get();
-        if (context.getDirection().getReceptionSide().isClient()) {
+    public static void receive(ModelChunkMessage message, IPayloadContext context) {
+        if (context.flow().isClientbound()) {
             context.enqueueWork(() -> ClientModelTransfers.accept(message));
         }
-        context.setPacketHandled(true);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }
