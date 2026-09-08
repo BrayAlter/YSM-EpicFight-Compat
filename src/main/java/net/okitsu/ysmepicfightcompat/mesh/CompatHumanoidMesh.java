@@ -42,6 +42,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class CompatHumanoidMesh extends HumanoidMesh {
     private static final Field COMPUTE_SETUP = locateComputeSetup();
     private static final AtomicBoolean CPU_FALLBACK_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean COMPUTE_LIMIT_LOGGED = new AtomicBoolean();
+    // ComputeShaderSetup.HF is a shared Integer[8]: one hidden-flag bit per part, 8 * 32 slots.
+    private static final int COMPUTE_SHADER_MAX_PARTS = 8 * 32;
+    // TOTAL_POSES holds EpicFightSharedConstants.MAX_JOINTS matrices shared by joints and parts.
+    private static final int COMPUTE_SHADER_MAX_POSES = 1000;
+    // Upper bound for armature joint count occupying the front of TOTAL_POSES.
+    private static final int COMPUTE_SHADER_JOINT_HEADROOM = 256;
     private static final AtomicBoolean AUXILIARY_FALLBACK_LOGGED = new AtomicBoolean();
 
     private final String modelId;
@@ -541,11 +548,37 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
         if (COMPUTE_SETUP == null) {
             return null;
         }
+        if (exceedsComputeShaderLimits(mesh)) {
+            return null;
+        }
         try {
             return (ComputeShaderSetup) COMPUTE_SETUP.get(mesh);
         } catch (IllegalAccessException ignored) {
             return null;
         }
+    }
+
+    /**
+     * Epic Fight's compute-shader setup uses fixed-size buffers: the shared
+     * hidden-flag array ({@code ComputeShaderSetup.HF}) holds 8 ints (256 parts)
+     * and {@code TOTAL_POSES} holds {@code MAX_JOINTS} (1000) matrices shared by
+     * joints and parts. Large converted YSM models can exceed both, which crashes
+     * inside {@code IrisComputeShaderSetup.drawWithShader}. Route such meshes to
+     * the CPU skinning fallback instead.
+     */
+    private static boolean exceedsComputeShaderLimits(SkinnedMesh mesh) {
+        int parts = mesh.getAllParts().size();
+        if (parts <= COMPUTE_SHADER_MAX_PARTS
+                && parts + COMPUTE_SHADER_JOINT_HEADROOM <= COMPUTE_SHADER_MAX_POSES) {
+            return false;
+        }
+        if (COMPUTE_LIMIT_LOGGED.compareAndSet(false, true)) {
+            CompatMod.LOG.warn(
+                    "YSM-EF Compat: converted model has {} mesh parts, beyond Epic Fight's "
+                            + "compute-shader limits; using the CPU skinning path for it",
+                    parts);
+        }
+        return true;
     }
 
     private static Field locateComputeSetup() {
