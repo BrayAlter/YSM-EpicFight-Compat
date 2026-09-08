@@ -2,14 +2,14 @@
 
 [日本語](README.ja.md)
 
-YSM Epic Fight Compat is a Forge mod that renders player models selected in the official Yes Steve Model mod with Epic Fight combat animations. Official YSM continues to own normal player rendering outside Epic Fight's combat renderer. An optional adapter also applies the same converted models to supported Touhou Little Maid entities while EpicFight_TouhouLittleMaid owns their combat rendering.
+YSM Epic Fight Compat is a NeoForge mod that renders player models selected in the official Yes Steve Model mod with Epic Fight combat animations. Official YSM continues to own normal player rendering outside Epic Fight's combat renderer. An optional adapter also applies the same converted models to supported Touhou Little Maid entities while EpicFight_TouhouLittleMaid owns their combat rendering.
 
 ## Requirements
 
-- Minecraft 1.20.1
-- Forge 47.4.10 or later
-- [Yes Steve Model](https://modrinth.com/mod/yes-steve-model) 2.6.0 or later for Forge 1.20.1
-- [Epic Fight](https://modrinth.com/mod/epic-fight) 20.14.17 or later for Forge 1.20.1
+- Minecraft 1.21.1
+- NeoForge 21.1.244 or later
+- [Yes Steve Model](https://modrinth.com/mod/yes-steve-model) 2.6.0 or later for NeoForge 1.21.1
+- [Epic Fight](https://modrinth.com/mod/epic-fight) 21.17 or later for NeoForge 1.21.1
 - [YSM Mapping API](https://github.com/sakuraimikoto33/YSM-Mapping-API) 0.1.7 or later
 
 Optional maid integration requires both:
@@ -61,7 +61,7 @@ Touhou Little Maid integration is optional and activates only when both Touhou L
 
 ## Building
 
-Java 17 and Git are required.
+Java 21 and Git are required.
 
 ```powershell
 .\gradlew.bat build
@@ -76,7 +76,7 @@ To use a Mapping API checkout under development, provide its path explicitly:
 The distributable jar is written to:
 
 ```text
-build/libs/ysm-epicfight-compat-mc1.20.1-<mod-version>-all.jar
+build/libs/ysm-epicfight-compat-mc1.21.1-<mod-version>.jar
 ```
 
 ## Documentation

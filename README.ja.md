@@ -2,14 +2,14 @@
 
 [English](README.md)
 
-YSM Epic Fight Compat は、公式 Yes Steve Model で選択したプレイヤーモデルを Epic Fight の戦闘アニメーションで描画する Forge Mod です。Epic Fight が戦闘用レンダラーを使用していない場面では、引き続き公式 YSM が通常のプレイヤー描画を担当します。任意アダプターにより、EpicFight_TouhouLittleMaid が戦闘描画を担当している対応メイドにも同じ変換モデルを適用できます。
+YSM Epic Fight Compat は、公式 Yes Steve Model で選択したプレイヤーモデルを Epic Fight の戦闘アニメーションで描画する NeoForge Mod です。Epic Fight が戦闘用レンダラーを使用していない場面では、引き続き公式 YSM が通常のプレイヤー描画を担当します。任意アダプターにより、EpicFight_TouhouLittleMaid が戦闘描画を担当している対応メイドにも同じ変換モデルを適用できます。
 
 ## 必要環境
 
-- Minecraft 1.20.1
-- Forge 47.4.10 以降
-- [Yes Steve Model](https://modrinth.com/mod/yes-steve-model) 2.6.0 以降（Forge 1.20.1版）
-- [Epic Fight](https://modrinth.com/mod/epic-fight) 20.14.17 以降（Forge 1.20.1版）
+- Minecraft 1.21.1
+- NeoForge 21.1.244 以降
+- [Yes Steve Model](https://modrinth.com/mod/yes-steve-model) 2.6.0 以降（NeoForge 1.21.1版）
+- [Epic Fight](https://modrinth.com/mod/epic-fight) 21.17 以降（NeoForge 1.21.1版）
 - [YSM Mapping API](https://github.com/sakuraimikoto33/YSM-Mapping-API) 0.1.7 以降
 
 メイド任意連携には次の両方が必要です。
@@ -61,7 +61,7 @@ Touhou Little Maid連携は任意で、Touhou Little MaidとEpicFight_TouhouLitt
 
 ## ビルド
 
-Java 17とGitが必要です。
+Java 21とGitが必要です。
 
 ```powershell
 .\gradlew.bat build
@@ -76,7 +76,7 @@ Java 17とGitが必要です。
 配布用jarは次の場所に生成されます。
 
 ```text
-build/libs/ysm-epicfight-compat-mc1.20.1-<mod-version>-all.jar
+build/libs/ysm-epicfight-compat-mc1.21.1-<mod-version>.jar
 ```
 
 ## ドキュメント
