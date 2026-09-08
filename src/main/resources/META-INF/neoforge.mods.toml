@@ -9,58 +9,54 @@ displayName="${mod_name}"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
-[[dependencies.${mod_id}]]
-    modId="forge"
-    mandatory=true
-    versionRange="${forge_version_range}"
+[[mixins]]
+config="ysm_epicfight_compat.mixins.json"
+
+[[dependencies.ysm_epicfight_compat]]
+    modId="neoforge"
+    type="required"
+    versionRange="${neo_version_range}"
     ordering="NONE"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.ysm_epicfight_compat]]
     modId="minecraft"
-    mandatory=true
+    type="required"
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.ysm_epicfight_compat]]
     modId="yes_steve_model"
-    mandatory=true
+    type="required"
     versionRange="${ysm_version_range}"
     ordering="AFTER"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.ysm_epicfight_compat]]
     modId="epicfight"
-    mandatory=true
+    type="required"
     versionRange="${epicfight_version_range}"
     ordering="AFTER"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.ysm_epicfight_compat]]
     modId="ysm_mapping_api"
-    mandatory=true
+    type="required"
     versionRange="[${ysm_mapping_api_version_range},)"
     ordering="AFTER"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
-    modId="configured"
-    mandatory=false
-    versionRange="${configured_version_range}"
-    ordering="NONE"
-    side="CLIENT"
-
-[[dependencies.${mod_id}]]
+[[dependencies.ysm_epicfight_compat]]
     modId="touhou_little_maid"
-    mandatory=false
+    type="optional"
     versionRange="${touhou_little_maid_version_range}"
     ordering="AFTER"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
+[[dependencies.ysm_epicfight_compat]]
     modId="ef_tlm"
-    mandatory=false
+    type="optional"
     versionRange="${epicfight_touhou_little_maid_version_range}"
     ordering="AFTER"
     side="BOTH"
