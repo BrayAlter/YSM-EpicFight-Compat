@@ -96,6 +96,94 @@ public final class ParallelAnimationProgram {
                                   int auxiliaryIndex, boolean authoredPose) {
     }
 
+    /** Render-context identity for one cached evaluation result. */
+    private record SampleKey(boolean firstPerson, boolean epicFightAction,
+                             @Nullable MovementAnimationType movement,
+                             boolean inventory) {
+    }
+
+    /** One cached, deep-copied evaluation result for a render context. */
+    private static final class CachedSample {
+        private double now;
+        @Nullable
+        private Float yaw;
+        @Nullable
+        private Frame frame;
+    }
+
+    /**
+     * Minimum sampled-clock spacing between full evaluations of one render
+     * context. Animations are authored well below 60 Hz, so re-deciding the
+     * pose faster than this only burns render-thread time at high frame rates.
+     */
+    static final double MIN_SAMPLE_INTERVAL_SECONDS = 1.0D / 60.0D;
+
+    /**
+     * Whether a cached evaluation still answers a draw at {@code now}. Repeat
+     * draws at the exact cached instant additionally require the same Epic
+     * Fight model yaw so same-frame passes stay bit-identical.
+     */
+    static boolean reusableSample(double now, double cachedNow,
+                                  @Nullable Float yaw, @Nullable Float cachedYaw) {
+        if (now == cachedNow) {
+            return java.util.Objects.equals(yaw, cachedYaw);
+        }
+        return now > cachedNow && now - cachedNow < MIN_SAMPLE_INTERVAL_SECONDS;
+    }
+
+    /**
+     * Deep-copies a published frame so it survives the shared evaluation
+     * scratch being overwritten by a later evaluation. Reuses the previous
+     * copy's arrays when shapes match to avoid steady-state allocation.
+     */
+    private static Frame copyFrame(Frame src, @Nullable Frame reuse) {
+        return new Frame(
+                copyMatrices(src.parallelDeltas(),
+                        reuse == null ? null : reuse.parallelDeltas()),
+                copyMatrices(src.wholeModelDeltas(),
+                        reuse == null ? null : reuse.wholeModelDeltas()),
+                copyMatrices(src.heldItemDeltas(),
+                        reuse == null ? null : reuse.heldItemDeltas()),
+                src.replaceEpicFightPose(), src.customFullBodyPose(),
+                src.replaceEpicFightAnchors() == null ? null
+                        : src.replaceEpicFightAnchors().clone(),
+                src.suppressParallelDeltas() == null ? null
+                        : src.suppressParallelDeltas().clone(),
+                src.heldItemAnchorJoints() == null ? null
+                        : src.heldItemAnchorJoints().clone(),
+                copyMatrices(src.fullBodyBlendSource(),
+                        reuse == null ? null : reuse.fullBodyBlendSource()),
+                src.fullBodyBlendWeight(),
+                src.movementPoseKey(),
+                src.itemSwitchHands(),
+                src.naturalLadderPose(),
+                src.ladderItemsInHand(),
+                Set.copyOf(src.hiddenBones()),
+                copyMatrices(src.authoredDeltas(),
+                        reuse == null ? null : reuse.authoredDeltas()));
+    }
+
+    @Nullable
+    private static OpenMatrix4f[] copyMatrices(@Nullable OpenMatrix4f[] src,
+                                               @Nullable OpenMatrix4f[] reuse) {
+        if (src == null) {
+            return null;
+        }
+        OpenMatrix4f[] dest = reuse != null && reuse.length == src.length
+                ? reuse : new OpenMatrix4f[src.length];
+        for (int i = 0; i < src.length; i++) {
+            OpenMatrix4f value = src[i];
+            if (value == null) {
+                dest[i] = null;
+            } else if (dest[i] == null) {
+                dest[i] = new OpenMatrix4f(value);
+            } else {
+                dest[i].load(value);
+            }
+        }
+        return dest;
+    }
+
     private record VisibilityVisit(GeometryDocument.Bone bone, int parentIndex) {
     }
 
@@ -956,6 +1044,21 @@ public final class ParallelAnimationProgram {
         if (now > state.boneQuerySampledAt) {
             state.environment.boneQueries(state.displayedBoneQueries);
         }
+        SampleKey sampleKey = new SampleKey(firstPerson, epicFightActionActive,
+                renderedYsmMovement, renderingInInventory);
+        CachedSample cachedSample = state.sampleCache.get(sampleKey);
+        if (cachedSample != null && cachedSample.frame != null
+                && reusableSample(now, cachedSample.now, epicModelYaw, cachedSample.yaw)) {
+            // Repeat draw of this render context within the evaluation interval.
+            // A client frame draws the same entity several times (main pass,
+            // Iris shadow pass, Epic Fight first-person body, HUD previews) and
+            // high frame rates re-draw far faster than animations meaningfully
+            // change, so full molang/controller evaluation is throttled to
+            // MIN_SAMPLE_INTERVAL_SECONDS per render context. Cached frames are
+            // deep copies, so later evaluations reusing the shared scratch
+            // buffers cannot corrupt them.
+            return cachedSample.frame;
+        }
         float stablePartialTick = (float) Math.max(0.0D,
                 Math.min(1.0D, now * 20.0D - entity.tickCount));
         double elapsed = Math.max(0.0D, now - state.startedAt);
@@ -1179,6 +1282,7 @@ public final class ParallelAnimationProgram {
                 && state.shouldStopRoulette(rouletteClip, rouletteElapsed)) {
             OfficialRoamingVariables.stopLocalRouletteAnimation(entity);
         }
+        state.cacheSample(sampleKey, now, epicModelYaw, state.publishedFrame);
         return state.publishedFrame;
     }
 
@@ -5372,6 +5476,23 @@ public final class ParallelAnimationProgram {
         private Set<InteractionHand> fullBodyInputHands = Set.of();
         private Set<InteractionHand> attackSoundRouteHands = Set.of();
         private String reportedFullBody = "";
+        private final Map<SampleKey, CachedSample> sampleCache = new HashMap<>();
+
+        /** Deep-copies the published frame into this render context's cache slot. */
+        private void cacheSample(SampleKey key, double now, @Nullable Float yaw,
+                                 @Nullable Frame published) {
+            if (published == null) {
+                return;
+            }
+            if (sampleCache.size() > 8) {
+                sampleCache.clear();
+            }
+            CachedSample slot = sampleCache.computeIfAbsent(key,
+                    ignored -> new CachedSample());
+            slot.now = now;
+            slot.yaw = yaw;
+            slot.frame = copyFrame(published, slot.frame);
+        }
 
         private RuntimeState(LivingEntity entity, String modelId,
                              Map<String, String> functions,
@@ -5418,6 +5539,7 @@ public final class ParallelAnimationProgram {
             rouletteSoundOutputEnabled = false;
             rouletteStartedAt = now;
             rouletteStopSent = false;
+            sampleCache.clear();
             publishedFrame = null;
             publishedScratch = null;
             spareWorkerScratch = null;

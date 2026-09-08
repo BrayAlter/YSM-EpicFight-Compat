@@ -59,6 +59,30 @@ class ParallelAnimationProgramTest {
     }
 
     @Test
+    void reusesCachedSampleForRepeatDrawsAtTheSameInstantWithMatchingYaw() {
+        assertTrue(ParallelAnimationProgram.reusableSample(5.0D, 5.0D, 90.0F, 90.0F));
+        assertTrue(ParallelAnimationProgram.reusableSample(5.0D, 5.0D, null, null));
+        assertFalse(ParallelAnimationProgram.reusableSample(5.0D, 5.0D, 90.0F, 45.0F));
+        assertFalse(ParallelAnimationProgram.reusableSample(5.0D, 5.0D, null, 45.0F));
+    }
+
+    @Test
+    void throttlesEvaluationWithinTheMinimumSampleIntervalIgnoringYawDrift() {
+        double interval = ParallelAnimationProgram.MIN_SAMPLE_INTERVAL_SECONDS;
+        assertTrue(ParallelAnimationProgram.reusableSample(
+                5.0D + interval * 0.5D, 5.0D, 91.0F, 90.0F));
+        assertFalse(ParallelAnimationProgram.reusableSample(
+                5.0D + interval * 1.01D, 5.0D, 90.0F, 90.0F));
+        assertFalse(ParallelAnimationProgram.reusableSample(
+                5.0D + interval * 2.0D, 5.0D, 90.0F, 90.0F));
+    }
+
+    @Test
+    void neverReusesCachedSamplesFromTheFuture() {
+        assertFalse(ParallelAnimationProgram.reusableSample(4.99D, 5.0D, 90.0F, 90.0F));
+    }
+
+    @Test
     void restartsTheRouletteTimelineForARepeatedMaidRequest() {
         OfficialRoamingVariables.RouletteState sameGeneration =
                 new OfficialRoamingVariables.RouletteState("extra0", true, 4L);
