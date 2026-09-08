@@ -57,4 +57,20 @@ class CompatHumanoidMeshTest {
         assertFalse(CompatHumanoidMesh.projectsDisplayedAttachments(true, false));
         assertTrue(CompatHumanoidMesh.projectsDisplayedAttachments(true, true));
     }
+
+    @Test
+    void computeShaderLimitAllowsUpTo256PartsWithoutPersistentMapping() {
+        assertTrue(CompatHumanoidMesh.withinComputeShaderLimits(256, false));
+        assertFalse(CompatHumanoidMesh.withinComputeShaderLimits(257, false));
+        assertFalse(CompatHumanoidMesh.withinComputeShaderLimits(443, false));
+    }
+
+    @Test
+    void persistentMappingLiftsTheHiddenFlagCapButNotThePoseStagingCap() {
+        assertTrue(CompatHumanoidMesh.withinComputeShaderLimits(443, true));
+        // 1000 shared pose slots minus 256 reserved for armature joints.
+        assertTrue(CompatHumanoidMesh.withinComputeShaderLimits(744, true));
+        assertFalse(CompatHumanoidMesh.withinComputeShaderLimits(745, true));
+        assertFalse(CompatHumanoidMesh.withinComputeShaderLimits(745, false));
+    }
 }

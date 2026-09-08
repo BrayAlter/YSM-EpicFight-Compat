@@ -28,6 +28,8 @@ import yesman.epicfight.api.utils.math.OpenMatrix4f;
 import yesman.epicfight.client.mesh.HumanoidMesh;
 import yesman.epicfight.client.renderer.EpicFightRenderTypes;
 import yesman.epicfight.client.renderer.shader.compute.ComputeShaderSetup;
+import yesman.epicfight.client.renderer.shader.compute.loader.ComputeShaderProvider;
+import yesman.epicfight.config.ClientConfig;
 
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
@@ -563,22 +565,40 @@ public final class CompatHumanoidMesh extends HumanoidMesh {
      * hidden-flag array ({@code ComputeShaderSetup.HF}) holds 8 ints (256 parts)
      * and {@code TOTAL_POSES} holds {@code MAX_JOINTS} (1000) matrices shared by
      * joints and parts. Large converted YSM models can exceed both, which crashes
-     * inside {@code IrisComputeShaderSetup.drawWithShader}. Route such meshes to
-     * the CPU skinning fallback instead.
+     * inside {@code IrisComputeShaderSetup.drawWithShader}. With Epic Fight's
+     * persistent mapping active ({@code use_persistent_buffer} plus OpenGL 4.6),
+     * the hidden-flag buffer is sized per mesh, so only the shared pose staging
+     * array still limits part count. Route oversized meshes to the CPU skinning
+     * fallback; this runs per draw, so config changes apply without a restart.
      */
     private static boolean exceedsComputeShaderLimits(SkinnedMesh mesh) {
         int parts = mesh.getAllParts().size();
-        if (parts <= COMPUTE_SHADER_MAX_PARTS
-                && parts + COMPUTE_SHADER_JOINT_HEADROOM <= COMPUTE_SHADER_MAX_POSES) {
+        if (withinComputeShaderLimits(parts, persistentMappingActive())) {
             return false;
         }
         if (COMPUTE_LIMIT_LOGGED.compareAndSet(false, true)) {
             CompatMod.LOG.warn(
                     "YSM-EF Compat: converted model has {} mesh parts, beyond Epic Fight's "
-                            + "compute-shader limits; using the CPU skinning path for it",
-                    parts);
+                            + "compute-shader limits; using the CPU skinning path for it "
+                            + "(use_persistent_buffer in epicfight-client.toml raises the "
+                            + "GPU-path limit to {} parts on OpenGL 4.6)",
+                    parts, COMPUTE_SHADER_MAX_POSES - COMPUTE_SHADER_JOINT_HEADROOM);
         }
         return true;
+    }
+
+    /** Pure limit decision: the pose staging cap always binds; the 256-part
+     * hidden-flag cap only binds without persistent mapping. */
+    static boolean withinComputeShaderLimits(int parts, boolean persistentMapping) {
+        if (parts + COMPUTE_SHADER_JOINT_HEADROOM > COMPUTE_SHADER_MAX_POSES) {
+            return false;
+        }
+        return persistentMapping || parts <= COMPUTE_SHADER_MAX_PARTS;
+    }
+
+    private static boolean persistentMappingActive() {
+        return ClientConfig.activatePersistentBuffer
+                && ComputeShaderProvider.supportPersistentMapping();
     }
 
     private static Field locateComputeSetup() {
